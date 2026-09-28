@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leitor de audiência do YouTube | Vinícius Rueda Lopes</title>
+  <meta name="description" content="Cole links do YouTube e veja resumo, sentimento dos comentários, temas recorrentes e sugestões de título, gerados com a YouTube Data API e um modelo de linguagem.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=5">
+</head>
+<body>
+  <header class="entrada">
+    <div class="miolo">
+      <a class="voltar" href="/">Portfólio de Vinícius Rueda Lopes</a>
+
+      <nav class="abas" aria-label="Ferramentas">
+        <a href="#videos" data-aba="videos">Vídeos</a>
+        <a href="#canais" data-aba="canais">Canais</a>
+        <a href="#radar" data-aba="radar">Radar de tendências</a>
+      </nav>
+
+      <div data-painel="videos">
+        <h1>O que a audiência está dizendo sobre este vídeo?</h1>
+        <p class="lede">Cole links de vídeos ou de um canal do YouTube. A página busca as estatísticas e os comentários mais relevantes, e um modelo de linguagem resume o conteúdo, mede o tom dos comentários, agrupa os assuntos e sugere títulos.</p>
+
+        <form id="form" novalidate>
+          <label for="links">Links do YouTube, um por linha</label>
+          <textarea id="links" rows="4" spellcheck="false" autocomplete="off"
+            placeholder="https://www.youtube.com/watch?v=...&#10;https://youtu.be/...&#10;https://www.youtube.com/@canal"></textarea>
+          <div class="acoes">
+            <button type="submit" id="btn">Analisar</button>
+            <p class="regras">Até 5 vídeos por vez. Um link de canal traz os 5 vídeos mais recentes.</p>
+          </div>
+        </form>
+      </div>
+
+      <div data-painel="canais" hidden>
+        <h1>Como um canal se compara aos concorrentes?</h1>
+        <p class="lede">Cole de 2 a 4 canais e veja lado a lado o ritmo de publicação, o desempenho típico de cada vídeo, o engajamento, os vídeos fora da curva e os pilares de conteúdo de cada um.</p>
+
+        <form id="form-canais" novalidate>
+          <label for="canais-links">Canais do YouTube, um por linha</label>
+          <textarea id="canais-links" rows="4" spellcheck="false" autocomplete="off"
+            placeholder="https://www.youtube.com/@canal&#10;@outrocanal&#10;ou o link de qualquer vídeo do canal"></textarea>
+          <div class="acoes">
+            <button type="submit" id="btn-canais">Comparar canais</button>
+            <p class="regras">De 2 a 4 canais. Cada um é analisado pelos seus 30 vídeos mais recentes.</p>
+          </div>
+        </form>
+      </div>
+
+      <div data-painel="radar" hidden>
+        <h1>O que está crescendo no YouTube brasileiro?</h1>
+        <p class="lede">Todo dia, o servidor coleta os vídeos mais vistos da semana em 10 nichos e guarda um retrato no banco. Com o histórico acumulado, o radar mostra as hashtags e os assuntos que ganharam força de uma semana pra outra.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="miolo" data-painel="videos">
+    <section id="execucao" class="execucao" hidden aria-live="polite">
+      <h2>Execução</h2>
+      <ol id="log" class="log"></ol>
+      <ul id="avisos" class="avisos"></ul>
+    </section>
+
+    <section id="comparacao" class="comparacao" hidden></section>
+
+    <div id="relatorios"></div>
+
+    <section class="como">
+      <h2>Como funciona</h2>
+      <ol>
+        <li>Os links viram IDs de vídeo. Link de canal passa pela playlist de uploads, que custa 1 unidade de cota da API em vez das 100 da busca.</li>
+        <li>Para cada vídeo, o servidor busca estatísticas e até 60 comentários ordenados por relevância na YouTube Data API.</li>
+        <li>Cada vídeo vira uma chamada separada ao modelo, que devolve um JSON com o tom de cada comentário, os assuntos recorrentes e as sugestões. Os vídeos são processados um de cada vez, pra respeitar o limite por minuto da camada gratuita.</li>
+        <li>Com dois vídeos ou mais, uma última chamada recebe só os resumos já prontos e escreve a comparação.</li>
+      </ol>
+      <p>O percentual de sentimento é contado no servidor a partir do rótulo de cada comentário, não estimado pelo modelo. Resultados ficam 72 horas em cache no MySQL, e cada visitante tem um limite diário de análises novas, o que mantém o projeto dentro das cotas gratuitas das APIs. A análise não usa a transcrição do vídeo, porque a API oficial só libera legendas para o dono do canal.</p>
+    </section>
+  </main>
+
+  <main class="miolo" data-painel="radar" hidden>
+    <section class="radar-painel" aria-live="polite">
+      <h2 class="visually-hidden">Nichos</h2>
+      <div id="radar-nichos" class="nichos" role="group" aria-label="Escolha um nicho"></div>
+      <div id="radar-nicho"></div>
+    </section>
+
+    <section class="coleta" aria-live="polite">
+      <h2>Andamento da coleta</h2>
+      <p id="coleta-resumo" class="coleta-resumo">Carregando o andamento da coleta…</p>
+      <div class="barra" aria-hidden="true"><span id="coleta-barra"></span></div>
+      <table class="coleta-tabela">
+        <thead><tr><th scope="col">Nicho</th><th scope="col">Dias coletados</th><th scope="col">Última coleta</th><th scope="col">Vídeos na última coleta</th></tr></thead>
+        <tbody id="coleta-nichos"></tbody>
+      </table>
+    </section>
+
+    <section class="como">
+      <h2>Como a coleta funciona</h2>
+      <ol>
+        <li>Um agendamento no servidor roda a cada 15 minutos e processa um nicho pendente do dia, até completar os 10.</li>
+        <li>Para cada nicho, uma busca na YouTube Data API traz os 50 vídeos mais vistos publicados nos últimos 7 dias no Brasil, e uma segunda chamada busca as estatísticas de todos de uma vez.</li>
+        <li>O servidor extrai as hashtags e tags de cada vídeo e soma quantos vídeos e quantas views cada uma teve.</li>
+        <li>Um modelo de linguagem agrupa os títulos em assuntos concretos, apontando os vídeos de cada um. As views de cada assunto são somadas no servidor.</li>
+      </ol>
+      <p>A busca é a chamada mais cara da API do YouTube, 100 unidades de uma cota de 10 mil por dia. Por isso ela nunca roda na hora da visita: o visitante só lê o que já está no banco. São cerca de mil unidades por dia para os 10 nichos.</p>
+    </section>
+  </main>
+
+  <main class="miolo" data-painel="canais" hidden>
+    <section id="execucao-canais" class="execucao" hidden aria-live="polite">
+      <h2>Execução</h2>
+      <ol id="log-canais" class="log"></ol>
+      <ul id="avisos-canais" class="avisos"></ul>
+    </section>
+
+    <div id="canais-resultado"></div>
+
+    <section class="como">
+      <h2>Como funciona</h2>
+      <ol>
+        <li>Cada link vira um ID de canal. Link de vídeo também serve: a página usa o canal dono do vídeo.</li>
+        <li>Para cada canal, o servidor lê as estatísticas gerais e os 30 vídeos mais recentes pela playlist de uploads. São 3 unidades de cota por canal, com cache de 12 horas.</li>
+        <li>Todos os números são calculados no servidor. Vídeos publicados há menos de 48 horas ficam fora da mediana, porque ainda estão acumulando views.</li>
+        <li>Uma única chamada ao modelo lê os títulos de todos os canais e aponta os pilares de conteúdo pelo número de cada vídeo. A contagem e a mediana de views de cada pilar são feitas no servidor.</li>
+      </ol>
+      <p>A API do YouTube arredonda o número de inscritos e deixa o canal escondê-lo, e ela não tem histórico: tudo aqui é um retrato de agora. Vídeo curto é o que tem até 3 minutos.</p>
+    </section>
+  </main>
+
+  <section class="miolo arquitetura" aria-labelledby="arq-titulo">
+    <h2 id="arq-titulo">Arquitetura</h2>
+    <p class="nota">Tudo roda num servidor de hospedagem compartilhada, com APIs e LLMs em camadas gratuitas. O navegador nunca fala direto com as APIs externas: as chaves ficam só no servidor.</p>
+    <div class="arq-rolagem">
+      <svg class="arq" viewBox="0 0 940 380" role="img" aria-labelledby="arq-desc">
+        <desc id="arq-desc">O navegador pede dados em JSON ao servidor PHP. O servidor consulta a YouTube Data API e um LLM (Groq, com Gemini de reserva), lê e grava cache e histórico no MySQL. Um agendamento do Hostinger chama o servidor a cada 15 minutos para coletar o radar.</desc>
+        <defs>
+          <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arq-ponta"/>
+          </marker>
+        </defs>
+
+        <g class="arq-caixa">
+          <rect x="20" y="50" width="200" height="120" rx="8"/>
+          <text x="40" y="82" class="arq-t">Navegador</text>
+          <text x="40" y="108">HTML, CSS e JavaScript</text>
+          <text x="40" y="128">Chart.js pros gráficos</text>
+          <text x="40" y="148">3 abas, sem framework</text>
+        </g>
+
+        <g class="arq-caixa arq-destaque">
+          <rect x="330" y="20" width="270" height="180" rx="8"/>
+          <text x="350" y="52" class="arq-t">Servidor PHP (Hostinger)</text>
+          <text x="350" y="80">API própria: vídeo, canais, radar</text>
+          <text x="350" y="102">métricas calculadas em PHP</text>
+          <text x="350" y="124">validação do JSON do LLM</text>
+          <text x="350" y="146">limite por visitante e teto diário</text>
+          <text x="350" y="168">chaves só no servidor</text>
+        </g>
+
+        <g class="arq-caixa">
+          <rect x="710" y="20" width="210" height="80" rx="8"/>
+          <text x="728" y="52" class="arq-t">YouTube Data API v3</text>
+          <text x="728" y="76">10 mil unidades por dia</text>
+        </g>
+
+        <g class="arq-caixa">
+          <rect x="710" y="120" width="210" height="80" rx="8"/>
+          <text x="728" y="152" class="arq-t">LLM</text>
+          <text x="728" y="176">Groq, reserva no Gemini</text>
+        </g>
+
+        <g class="arq-caixa">
+          <rect x="330" y="262" width="270" height="100" rx="8"/>
+          <text x="350" y="294" class="arq-t">MySQL</text>
+          <text x="350" y="318">cache de 12 a 72 horas</text>
+          <text x="350" y="340">histórico diário do radar e consumo</text>
+        </g>
+
+        <g class="arq-caixa">
+          <rect x="20" y="262" width="200" height="100" rx="8"/>
+          <text x="40" y="294" class="arq-t">Cron do Hostinger</text>
+          <text x="40" y="318">a cada 15 minutos</text>
+          <text x="40" y="340">1 nicho por chamada</text>
+        </g>
+
+        <g class="arq-linha">
+          <path d="M220 100 H326" marker-end="url(#seta)"/>
+          <path d="M600 60 H706" marker-end="url(#seta)"/>
+          <path d="M600 160 H706" marker-end="url(#seta)"/>
+          <path d="M465 200 V258" marker-start="url(#seta)" marker-end="url(#seta)"/>
+          <path d="M220 312 H280 V180 H326" marker-end="url(#seta)"/>
+        </g>
+        <g class="arq-rotulo">
+          <text x="273" y="90" text-anchor="middle">JSON</text>
+          <text x="653" y="50" text-anchor="middle">HTTPS</text>
+          <text x="653" y="150" text-anchor="middle">prompt</text>
+          <text x="478" y="234">lê e grava</text>
+          <text x="232" y="302">com token</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <footer class="miolo rodape">
+    <p>Feito por Vinícius Rueda Lopes com PHP, MySQL, Chart.js, YouTube Data API v3, Groq e Gemini, tudo em camadas gratuitas. <a href="https://github.com/viniciusrueda/youtube-audience-analyzer">Código no GitHub</a></p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="assets/app.js?v=5"></script>
+</body>
+</html>

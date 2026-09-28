@@ -1,0 +1,40 @@
+# Publica no Hostinger a cada push na main (ou manualmente, na aba Actions).
+# Envia por FTP só os arquivos que mudaram desde a última publicação.
+# Nunca apaga arquivos que não vieram do repositório, então o .htaccess
+# com as credenciais, que só existe no servidor, fica intacto.
+
+name: Publicar no Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Checar a sintaxe do PHP
+        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Enviar por FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVIDOR }}
+          username: ${{ secrets.FTP_USUARIO }}
+          password: ${{ secrets.FTP_SENHA }}
+          server-dir: ${{ secrets.FTP_PASTA }}
+          protocol: ftps
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            docs/**
+            README.md

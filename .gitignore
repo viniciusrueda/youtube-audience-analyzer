@@ -1,0 +1,13 @@
+# Credenciais: o .htaccess da raiz tem as chaves e fica só no servidor.
+# Os .htaccess de lib/ e sql/ (que só bloqueiam acesso) continuam no repositório.
+/.htaccess
+.env
+
+# Coisas locais
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+.vs/

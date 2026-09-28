@@ -1,0 +1,4 @@
+Coloque aqui os prints usados no README:
+- videos.png: aba Vídeos com um relatório aberto
+- canais.png: aba Canais com uma comparação
+- radar.png: aba Radar com um nicho aberto
