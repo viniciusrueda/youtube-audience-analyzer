@@ -24,19 +24,6 @@ jobs:
       - name: Checar a sintaxe do PHP
         run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
 
-      - name: Diagnóstico do FTP
-        env:
-          SRV: ${{ secrets.FTP_SERVIDOR }}
-          USR: ${{ secrets.FTP_USUARIO }}
-          SENHA: ${{ secrets.FTP_SENHA }}
-        run: |
-          echo "== servidor e pasta inicial =="
-          curl -sv --ssl-reqd -k --list-only --user "$USR:$SENHA" "ftp://$SRV/" 2>&1 | grep -E "^< (220|230|257)" || true
-          echo "== raiz, detalhado =="
-          curl -s --ssl-reqd -k --user "$USR:$SENHA" -X "LIST -a" "ftp://$SRV/" || true
-          echo "== domains/portfoliovinicius.com.br, detalhado =="
-          curl -s --ssl-reqd -k --user "$USR:$SENHA" -X "LIST -a" "ftp://$SRV/domains/portfoliovinicius.com.br/" || true
-
       - name: Enviar por FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
